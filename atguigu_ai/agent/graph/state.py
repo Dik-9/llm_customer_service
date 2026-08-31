@@ -34,6 +34,7 @@ class MessageProcessingState(TypedDict, total=False):
         action_count: 已执行的动作计数
         max_actions: 最大动作数限制
         current_commands: 当前生成的命令结果 (GenerationResult)
+        process_result: 命令处理结果 (ProcessResult)，understand_node 写入、policy_node 读取以决定 next_action
         current_prediction: 当前策略预测结果 (PolicyPrediction)
         current_action_result: 当前动作执行结果 (ActionResult)
         node_history: 执行过的节点历史
@@ -60,6 +61,7 @@ class MessageProcessingState(TypedDict, total=False):
     
     # 中间结果
     current_commands: Any  # Optional[GenerationResult]
+    process_result: Any  # Optional[ProcessResult]（understand_node → policy_node，承载 next_action）
     current_prediction: Any  # Optional[PolicyPrediction]
     current_action_result: Any  # Optional[ActionResult]
     
@@ -118,6 +120,7 @@ def create_initial_state(
         max_actions=max_actions,
         # 中间结果
         current_commands=None,
+        process_result=None,
         current_prediction=None,
         current_action_result=None,
         # 调试信息
