@@ -1,0 +1,35 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Env files
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Model weights and training artifacts (exceed GitHub size limits or are build outputs)
+ecs_demo/models/**/*.bin
+ecs_demo/models/**/*.tar.gz
