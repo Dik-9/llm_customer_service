@@ -41,7 +41,7 @@ vector_store:
 
 # 数据库配置 (MySQL)
 database:
-  url: mysql+pymysql://root:${MYSQL_PASSWORD}@52.231.65.205:3306/ecommerce
+  url: mysql+pymysql://root:${MYSQL_PASSWORD}@52.231.65.205:3306/ecs
 
 # Tracker存储配置
 tracker_store:

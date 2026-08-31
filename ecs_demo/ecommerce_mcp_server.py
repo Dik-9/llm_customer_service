@@ -289,6 +289,11 @@ def create_server(name: str = "ecommerce-mcp", version: str = "1.0.0") -> MCPSer
 # =============================================================================
 
 def main() -> int:
+    # MCP server 作为独立进程启动，需自己加载 .env（DB 凭据等），
+    # atguigu cli 只在 shell/run 入口加载 .env，不会注入到本进程
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
+
     parser = argparse.ArgumentParser(description="电商 MCP Server")
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
     parser.add_argument("--port", type=int, default=8765, help="监听端口")
