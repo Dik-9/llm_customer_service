@@ -330,6 +330,63 @@ class VectorStoreConfig:
 
 
 @dataclass
+class MCPServerConfig:
+    """单个 MCP Server 连接配置（endpoints.yml 的 mcp.servers.<name>）。
+
+    属性：
+        base_url:          MCP Server 完整请求 URL（如 http://127.0.0.1:8765/mcp）
+        timeout:           单次 HTTP 调用超时（秒）
+        retry:             网络层错误重试次数（不含首次）
+        failure_threshold: 熔断器连续失败阈值
+        reset_timeout:     熔断器 OPEN 维持秒数后转 HALF_OPEN
+    """
+    base_url: str = ""
+    timeout: float = 10.0
+    retry: int = 2
+    failure_threshold: int = 5
+    reset_timeout: float = 30.0
+
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "MCPServerConfig":
+        """从字典创建 MCP Server 配置。"""
+        config = _resolve_env_vars(config)
+        cb = config.get("circuit_breaker", {}) or {}
+        return cls(
+            base_url=config.get("base_url", ""),
+            timeout=config.get("timeout", 10.0),
+            retry=config.get("retry", 2),
+            failure_threshold=cb.get("failure_threshold", 5),
+            reset_timeout=cb.get("reset_timeout", 30.0),
+        )
+
+
+@dataclass
+class MCPConfig:
+    """MCP 工具协议层配置（endpoints.yml 的 mcp 节，SPEC §3.6）。
+
+    enabled 为 False 时 ToolRegistry 全走本地 Action 直调，等价基线（SPEC §6.4）。
+    """
+    enabled: bool = False
+    servers: Dict[str, MCPServerConfig] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "MCPConfig":
+        """从字典创建 MCP 配置。"""
+        config = _resolve_env_vars(config)
+        servers_dict: Dict[str, MCPServerConfig] = {}
+        for name, server_config in (config.get("servers", {}) or {}).items():
+            servers_dict[name] = MCPServerConfig.from_dict(server_config or {})
+        return cls(
+            enabled=config.get("enabled", False),
+            servers=servers_dict,
+        )
+
+    def get_server(self, name: str) -> Optional[MCPServerConfig]:
+        """按名取 server 配置。"""
+        return self.servers.get(name)
+
+
+@dataclass
 class AtguiguConfig:
     """atguigu_ai主配置类
     
@@ -420,12 +477,14 @@ class EndpointsConfig:
         nlg: NLG配置（响应重述等）
         models: LLM模型配置字典，key为模型名称
         embeddings: 嵌入模型配置字典，key为模型名称
+        mcp: MCP工具协议层配置（SPEC §3.6）
     """
     tracker_store: TrackerStoreConfig = field(default_factory=TrackerStoreConfig)
     vector_store: VectorStoreConfig = field(default_factory=VectorStoreConfig)
     nlg: Optional[NLGConfig] = None
     models: Dict[str, LLMConfig] = field(default_factory=dict)
     embeddings: Dict[str, EmbeddingsConfig] = field(default_factory=dict)
+    mcp: Optional[MCPConfig] = None
     
     @classmethod
     def load(cls, endpoints_path: Union[str, Path] = DEFAULT_ENDPOINTS_PATH) -> "EndpointsConfig":
@@ -462,12 +521,17 @@ class EndpointsConfig:
         nlg_config = None
         if "nlg" in config:
             nlg_config = NLGConfig.from_dict(config.get("nlg", {}))
-        
+
+        # 解析MCP配置（SPEC §3.6）
+        mcp_config = None
+        if "mcp" in config:
+            mcp_config = MCPConfig.from_dict(config.get("mcp", {}))
+
         # 解析vector_store配置
         vector_store_config = VectorStoreConfig.from_dict(
             config.get("vector_store", {})
         )
-        
+
         return cls(
             tracker_store=TrackerStoreConfig.from_dict(
                 config.get("tracker_store", {})
@@ -476,6 +540,7 @@ class EndpointsConfig:
             nlg=nlg_config,
             models=models_dict,
             embeddings=embeddings_dict,
+            mcp=mcp_config,
         )
     
     def get_model_config(self, model_name: str) -> Optional[LLMConfig]:

@@ -50,3 +50,17 @@ tracker_store:
 # NLG配置
 nlg:
   rephrase_enabled: false
+
+# MCP 工具协议层配置（SPEC §3.6）
+# enabled: false（默认）时 ToolRegistry 全走本地 Action 直调，等价基线行为（SPEC §6.4）
+# 启用前需先启动电商 MCP Server：python ecs_demo/ecommerce_mcp_server.py（默认 127.0.0.1:8765）
+mcp:
+  enabled: false
+  servers:
+    ecommerce:
+      base_url: "http://127.0.0.1:8765/mcp"
+      timeout: 10
+      retry: 2
+      circuit_breaker:
+        failure_threshold: 5
+        reset_timeout: 30

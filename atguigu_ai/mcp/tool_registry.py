@@ -233,10 +233,91 @@ class ToolRegistry:
             await self._mcp_client.close()
 
 
+# =============================================================================
+# 默认映射表 + 工厂
+# =============================================================================
+
+# SPEC §3.4：电商 Action 名 → MCP 工具名（含命名空间）映射
+# 与 ecs_demo/ecommerce_mcp_server.py 暴露的工具名保持一致
+DEFAULT_ECOMMERCE_MAPPING: Dict[str, str] = {
+    # 订单
+    "action_ask_order_id": "ecommerce__query_order",
+    "action_get_order_detail": "ecommerce__get_order_detail",
+    "action_ask_receive_id": "ecommerce__query_receive_info",
+    "action_ask_receive_province": "ecommerce__list_provinces",
+    "action_ask_receive_city": "ecommerce__list_cities",
+    "action_ask_receive_district": "ecommerce__list_districts",
+    "action_ask_set_receive_info": "ecommerce__update_receive_info",
+    "action_cancel_order": "ecommerce__cancel_order",
+    # 物流
+    "action_get_logistics_companys": "ecommerce__list_logistics_companys",
+    "action_get_logistics_info": "ecommerce__get_logistics_info",
+    # 售后
+    "action_ask_order_id_after_delivered": "ecommerce__query_postsale_orders",
+    "action_check_postsale_eligible": "ecommerce__check_postsale_eligible",
+    "action_ask_postsale_reason": "ecommerce__ask_postsale_reason",
+    "action_apply_postsale": "ecommerce__apply_postsale",
+}
+
+
+def build_tool_registry(mcp_config: Any) -> ToolRegistry:
+    """从 MCPConfig 构造 ToolRegistry（Agent.load 调用）。
+
+    - mcp_config 为 None 或 enabled=False → 返回本地 ToolRegistry（mcp_client=None，基线）
+    - enabled=True 且配置了 server → 创建 MCPClient + 注入 DEFAULT_ECOMMERCE_MAPPING
+
+    注：MCPClient 此处不调用 initialize（Agent.load 为同步方法）。
+    server 端 tools/call 不强制 initialize 协商，首次 call_tool 直连即可；
+    如需 initialize 协商，可在 Agent 首次 handle_message 时 lazy 调用。
+    """
+    enabled = getattr(mcp_config, "enabled", False) if mcp_config else False
+    if not enabled:
+        return ToolRegistry()
+
+    servers = getattr(mcp_config, "servers", {}) or {}
+    if not servers:
+        logger.warning("MCP enabled 但未配置 servers，回退本地 ToolRegistry")
+        return ToolRegistry()
+
+    # 优先取 ecommerce server，否则取第一个
+    server_cfg = servers.get("ecommerce") or next(iter(servers.values()))
+    base_url = getattr(server_cfg, "base_url", "")
+    if not base_url:
+        logger.warning("MCP server base_url 为空，回退本地 ToolRegistry")
+        return ToolRegistry()
+
+    from atguigu_ai.mcp.client import (
+        CircuitBreakerConfig,
+        MCPClient,
+        MCPClientConfig,
+    )
+
+    client_config = MCPClientConfig(
+        base_url=base_url,
+        timeout=getattr(server_cfg, "timeout", 10.0),
+        retry=getattr(server_cfg, "retry", 2),
+        circuit_breaker=CircuitBreakerConfig(
+            failure_threshold=getattr(server_cfg, "failure_threshold", 5),
+            reset_timeout=getattr(server_cfg, "reset_timeout", 30.0),
+        ),
+    )
+    mcp_client = MCPClient(client_config)
+    logger.info(
+        f"MCP 已启用，ToolRegistry 注入 MCPClient(base_url={base_url}) "
+        f"+ {len(DEFAULT_ECOMMERCE_MAPPING)} 个电商工具映射"
+    )
+    return ToolRegistry(
+        mcp_client=mcp_client,
+        mcp_mapping=DEFAULT_ECOMMERCE_MAPPING,
+    )
+
+
 __all__ = [
     "Executable",
     "LocalExecutable",
     "MCPExecutable",
     "ToolRegistry",
     "mcp_result_to_action_result",
+    "DEFAULT_ECOMMERCE_MAPPING",
+    "build_tool_registry",
 ]

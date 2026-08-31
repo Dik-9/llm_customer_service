@@ -153,6 +153,7 @@ class Agent:
         command_generator: Optional[LLMCommandGenerator] = None,
         nlg_generator: Optional[Any] = None,
         config: Optional[AgentConfig] = None,
+        tool_registry: Optional[Any] = None,
     ):
         """初始化Agent。
         
@@ -168,7 +169,12 @@ class Agent:
         self.domain = domain or Domain()
         self.flows = flows or FlowsList()
         self.config = config or AgentConfig()
-        
+
+        # ToolRegistry：统一执行入口（MCP 启用时走 MCP，否则本地直调，SPEC §6.2）
+        # 惰性导入避免顶层循环依赖；未注入时构造本地注册表，等价基线行为
+        from atguigu_ai.mcp.tool_registry import ToolRegistry
+        self.tool_registry = tool_registry or ToolRegistry()
+
         # 初始化Tracker存储
         if tracker_store:
             self.tracker_store = tracker_store
@@ -635,7 +641,12 @@ class Agent:
             flow_policy,
             enterprise_policy,
         ])
-        
+
+        # 构建 ToolRegistry（SPEC §6.2）：MCP enabled 时注入 MCPClient + 电商映射，否则本地直调
+        # 注：build_tool_registry 不会触发 initialize（Agent.load 为同步方法，连接由首次 call_tool 惰性建立）
+        from atguigu_ai.mcp.tool_registry import build_tool_registry
+        tool_registry = build_tool_registry(endpoints_config.mcp)
+
         return cls(
             domain=domain,
             flows=flows,
@@ -644,6 +655,7 @@ class Agent:
             command_generator=command_generator,
             nlg_generator=nlg_generator,
             config=config,
+            tool_registry=tool_registry,
         )
     
     @classmethod
