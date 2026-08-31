@@ -188,13 +188,14 @@ class InteractiveShell:
         """处理用户消息。"""
         try:
             # 发送消息到Agent
-            responses = await self.agent.handle_message(
+            result = await self.agent.handle_message(
                 message=text,
                 sender_id=self.sender_id,
             )
             
-            # 显示响应
-            for response in responses:
+            # 显示响应（handle_message 返回 MessageResponse，其 .messages 为响应列表）
+            messages = getattr(result, "messages", None) or []
+            for response in messages:
                 if isinstance(response, dict):
                     text = response.get("text", "")
                     if text:
@@ -215,8 +216,10 @@ class InteractiveShell:
                 else:
                     click.echo(f"Bot: {response}")
             
-            if not responses:
-                click.echo("Bot: (无响应)")
+            if not messages:
+                metadata = getattr(result, "metadata", {}) or {}
+                error = metadata.get("error") if isinstance(metadata, dict) else None
+                click.echo(f"Bot: (无响应{f': {error}' if error else ''})")
                 
         except Exception as e:
             click.echo(f"处理消息失败: {e}", err=True)
