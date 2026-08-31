@@ -1,0 +1,41 @@
+# 需求
+目前你已经大致了该项目，我现在想对这个项目进行改造，引入mcp（自定义实现，贴合该项目的），skill，以及记忆（短期和长期）
+先与我对话，完善思路
+
+
+
+
+# Git 约定
+
+- 远程仓库：https://github.com/Dik-9/llm_customer_service.git
+- 当前改造分支：dev（基线为 main 的 Initial commit）。所有改造改动提交到 dev，完成后再合并回 main（git checkout main && git merge dev && git push）。
+- 推送 dev 到远程：git push -u origin dev（首次），之后直接 git push。
+
+
+
+MCP问题：自研协议就够吧。如果使用 HTTP，是不是后续如果订单/售后/物流这些服务是Java的也可以调取？我的疑问MCP就是把订单/售后/物流这些服务/工具封装一个服务嘛，我有点没理解MCP在改进项目中的使用
+工具范围：先只包装现有电商 Action
+Skill 粒度：拆分三个技能包，后续如果扩展技能（推荐）是不是方便一些
+长期记忆存储： Neo4j 图谱记忆
+记忆写入时机：显式信号实时提取 + 会话结束兜底。
+
+目前该项目是使用workflow的形式吧？后续是使用skill替代workflow嘛？
+如果是，有什么优略？
+
+
+使用使用skill代替YAMLFlow，而非workflow？
+目前该项目用YAML编写了什么？订单/售后/物流的具体流程？还是一些槽位提取的提示词？
+而且使用YAML进行编写也不太方便吧？
+
+modify_order_receive_info：选订单→查详情→选收货信息→逐项修改→确认入库，这些不应该是直接封装mcp嘛或者是tool工具，在目前项目中不是函数嘛？
+其实引入skill也没有改变什么，流程还是之前的？
+
+我之前认为引入skill可以解决一些YAML编写不方便问题？现在发现是不是不行？有什么方便对yaml进行撰写的方法嘛，页面？还是不使用yaml？
+目前该项目是不是直接使用的tool或者说函数，而非mcp？比如一些查数据库的操作
+
+
+
+Skill 方案：砍掉
+YAML DX：Schema 校验 + IDE 补全不做，改善几乎没有，
+帮我梳理一下想法的正确：可视化画布直接接入Dify/Coze，在其上面进行具体的yaml编写会怎么样？是否可行
+LLM 生成 Flow方案沉淀一个skill/提示词，专门用于llm生成符合该项目的yaml流程？是否可行
