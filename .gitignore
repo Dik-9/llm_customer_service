@@ -33,3 +33,9 @@ logs/
 # Model weights and training artifacts (exceed GitHub size limits or are build outputs)
 ecs_demo/models/**/*.bin
 ecs_demo/models/**/*.tar.gz
+
+# Runtime trackers (inspect 调试产生的 tracker 持久化文件)
+trackers/
+
+# Personal notes (用户的对话笔记，不入版本库)
+prompt.txt

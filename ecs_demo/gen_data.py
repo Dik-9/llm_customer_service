@@ -1,3 +1,11 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+# 优先加载本目录下的 .env，再回落到 cwd 的 .env
+load_dotenv(Path(__file__).parent / ".env")
+load_dotenv()
+
 from actions.db_table_class import *
 import random
 from uuid import uuid4
@@ -7,11 +15,12 @@ from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import Session, joinedload
 
 # 创建数据库引擎
-db_host = "52.231.65.205"
-db_port = 3306
-db_name = "ecs"
-db_user_name = "root"
-db_password = "123456"
+# 与 endpoints.yml database.url / actions/db.py 保持一致，统一从环境变量读
+db_host = os.getenv("MYSQL_HOST", "52.231.65.205")
+db_port = int(os.getenv("MYSQL_PORT", "3306"))
+db_name = os.getenv("MYSQL_DB", "ecs")
+db_user_name = os.getenv("MYSQL_USER", "root")
+db_password = os.getenv("MYSQL_PASSWORD", "123456")
 url = f"mysql+pymysql://{db_user_name}:{db_password}@{db_host}:{db_port}/{db_name}?charset=utf8"
 engine = create_engine(url)
 

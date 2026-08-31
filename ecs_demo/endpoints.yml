@@ -6,7 +6,7 @@ models:
   # 命令生成：意图分类+槽位提取，简单任务，不需要思考
   command:
     type: openai
-    model: qwen3.6-plus
+    model: qwen3.7-max-2026-06-08
     api_key: ${DASHSCOPE_API_KEY}
     api_base: https://llm-xcmc3bcdk6yz5n2b.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     temperature: 0.1
@@ -16,7 +16,7 @@ models:
   # RAG 回答：检索结果转自然语言，照抄+排版，不需要思考
   rag:
     type: openai
-    model: qwen3.6-plus
+    model: qwen3.7-max-2026-06-08
     api_key: ${DASHSCOPE_API_KEY}
     api_base: https://llm-xcmc3bcdk6yz5n2b.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     temperature: 0.1
@@ -26,7 +26,7 @@ models:
   # GraphRAG：Cypher 生成/验证/校正，复杂代码生成，保留思考
   graphrag:
     type: openai
-    model: qwen3.6-plus
+    model: qwen3.7-max-2026-06-08
     api_key: ${DASHSCOPE_API_KEY}
     api_base: https://llm-xcmc3bcdk6yz5n2b.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     temperature: 0

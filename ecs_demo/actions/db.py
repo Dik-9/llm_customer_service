@@ -1,14 +1,16 @@
 # pccip install pymysql sqlacodegen
+import os
 import subprocess
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # 创建数据库引擎
-db_host = "52.231.65.205"
-db_port = 3306
-db_name = "ecs"
-db_user_name = "root"
-db_password = "123456"
+# 与 endpoints.yml database.url 对齐，支持从环境变量覆盖
+db_host = os.getenv("MYSQL_HOST", "52.231.65.205")
+db_port = int(os.getenv("MYSQL_PORT", "3306"))
+db_name = os.getenv("MYSQL_DB", "ecs")
+db_user_name = os.getenv("MYSQL_USER", "root")
+db_password = os.getenv("MYSQL_PASSWORD", "123456")
 url = f"mysql+pymysql://{db_user_name}:{db_password}@{db_host}:{db_port}/{db_name}?charset=utf8"
 
 # 配置会话工厂
