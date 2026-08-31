@@ -41,6 +41,7 @@ class MessageProcessingState(TypedDict, total=False):
         _command_generator: 命令生成器引用 (LLMCommandGenerator)
         _command_processor: 命令处理器引用 (CommandProcessor)
         _policy_ensemble: 策略集成器引用 (PolicyEnsemble)
+        _tool_registry: 工具注册表引用 (ToolRegistry，统一执行入口)
     """
     # 核心状态（使用 Any 以兼容 LangGraph 运行时类型解析）
     tracker: Any  # DialogueStateTracker
@@ -70,6 +71,7 @@ class MessageProcessingState(TypedDict, total=False):
     _command_generator: Any  # Optional[LLMCommandGenerator]
     _command_processor: Any  # Optional[CommandProcessor]
     _policy_ensemble: Any  # Optional[PolicyEnsemble]
+    _tool_registry: Any  # Optional[ToolRegistry]（统一执行入口，SPEC §6.2）
 
 
 def create_initial_state(
@@ -82,9 +84,10 @@ def create_initial_state(
     command_generator: Any = None,
     command_processor: Any = None,
     policy_ensemble: Any = None,
+    tool_registry: Any = None,
 ) -> MessageProcessingState:
     """创建初始状态。
-    
+
     Args:
         tracker: 对话状态追踪器 (DialogueStateTracker)
         input_message: 用户输入消息
@@ -95,7 +98,8 @@ def create_initial_state(
         command_generator: 命令生成器 (LLMCommandGenerator)
         command_processor: 命令处理器 (CommandProcessor)
         policy_ensemble: 策略集成器 (PolicyEnsemble)
-        
+        tool_registry: 工具注册表 (ToolRegistry，统一执行入口，SPEC §6.2)
+
     Returns:
         初始化的状态字典
     """
@@ -123,6 +127,7 @@ def create_initial_state(
         _command_generator=command_generator,
         _command_processor=command_processor,
         _policy_ensemble=policy_ensemble,
+        _tool_registry=tool_registry,
     )
 
 

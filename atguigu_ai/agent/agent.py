@@ -249,6 +249,7 @@ class Agent:
             command_generator=self.command_generator,
             command_processor=self.command_processor,
             policy_ensemble=self.policy_ensemble,
+            tool_registry=self.tool_registry,
         )
         
         # 执行图
