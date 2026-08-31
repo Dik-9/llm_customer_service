@@ -152,7 +152,7 @@ def main():
 
     conn.close()
     print()
-    print("✅ 完成。下一步：修改 gen_data.py 后跑 gen_data.py 灌模拟数据")
+    print("✅ 完成。ecs 业务库已从 ecs.sql 重建（含表结构与基础数据），可直接 atguigu inspect 验证。")
 
 
 if __name__ == "__main__":
