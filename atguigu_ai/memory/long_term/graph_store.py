@@ -68,7 +68,19 @@ class GraphMemoryStore:
         """创建 Neo4j driver 并尝试建立独立 database 隔离。"""
         from neo4j import GraphDatabase
 
-        driver = GraphDatabase.driver(uri, auth=(user, password))
+        # 抑制 driver 的 WARNING 级通知日志（如空库首次查询 "label does not exist"，
+        # 属正常现象，但 driver 会打一大段 GqlStatusObject 噪音；真正的错误是 ERROR 级仍保留）
+        import logging as _logging
+        _logging.getLogger("neo4j").setLevel(_logging.ERROR)
+
+        # neo4j 5.8+/6.x 支持实例级通知关闭（更精准），旧版 fallback
+        try:
+            driver = GraphDatabase.driver(
+                uri, auth=(user, password), notifications_min_severity="OFF"
+            )
+        except TypeError:
+            driver = GraphDatabase.driver(uri, auth=(user, password))
+
         store = cls(driver=driver, database=database)
         store._ensure_database_or_fallback()
         return store

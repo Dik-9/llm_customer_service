@@ -87,6 +87,11 @@ class MemoryHooks:
         self.extractor = extractor
         self.compressor = compressor
         self.graph_store = graph_store
+        # 同一消息去重：action_node 在 max_actions 循环中可能多次执行（如
+        # action_listen → action → action_listen），同一 user message 不应重复抽取。
+        # 记录上次已抽取的 (sender_id, message)，相同则跳过（避免重复调 LLM + 重复写图谱）。
+        # 按 sender_id 区分，避免不同用户相同消息被误去重。
+        self._last_realtime_key: tuple = ()
 
     @property
     def enabled(self) -> bool:
@@ -162,6 +167,13 @@ class MemoryHooks:
         user_id = self._get_user_id(tracker)
         if not user_id:
             return []
+
+        # 同一消息去重：action 循环内多次调用时，已抽取过的消息不再重复抽取
+        # 按 (sender_id, message) 去重，避免跨用户误去重
+        dedup_key = (user_id, message)
+        if dedup_key == self._last_realtime_key:
+            return []
+        self._last_realtime_key = dedup_key
 
         try:
             recent = _turns_to_text(getattr(tracker, "dialogue_turns", []) or [], limit=3)
