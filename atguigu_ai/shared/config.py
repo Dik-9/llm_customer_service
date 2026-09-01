@@ -387,6 +387,79 @@ class MCPConfig:
 
 
 @dataclass
+class ShortTermMemoryConfig:
+    """短期记忆配置（config.yml 的 memory.short_term，SPEC §4.5）。
+
+    原始轮次超过 max_raw_turns 时，保留最近 keep_recent_turns 轮完整记录，
+    前面历史由 LLM 压缩为一段摘要写入 session_summary 槽位。
+    """
+    enabled: bool = False
+    max_raw_turns: int = 20
+    keep_recent_turns: int = 10
+    llm: str = "command"  # 引用 endpoints.yml 中 models.<name>，摘要不需强推理
+
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "ShortTermMemoryConfig":
+        config = _resolve_env_vars(config)
+        return cls(
+            enabled=config.get("enabled", False),
+            max_raw_turns=config.get("max_raw_turns", 20),
+            keep_recent_turns=config.get("keep_recent_turns", 10),
+            llm=config.get("llm", "command"),
+        )
+
+
+@dataclass
+class LongTermMemoryConfig:
+    """长期记忆配置（config.yml 的 memory.long_term，SPEC §4.5）。
+
+    graph_database 为 Neo4j 独立 database 名，与 GraphRAG 隔离。
+    """
+    enabled: bool = False
+    idle_timeout_minutes: int = 30
+    graph_database: str = "user_memory"
+    llm: str = "command"
+    realtime_extract: bool = True
+    end_of_session_extract: bool = True
+
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "LongTermMemoryConfig":
+        config = _resolve_env_vars(config)
+        return cls(
+            enabled=config.get("enabled", False),
+            idle_timeout_minutes=config.get("idle_timeout_minutes", 30),
+            graph_database=config.get("graph_database", "user_memory"),
+            llm=config.get("llm", "command"),
+            realtime_extract=config.get("realtime_extract", True),
+            end_of_session_extract=config.get("end_of_session_extract", True),
+        )
+
+
+@dataclass
+class MemoryConfig:
+    """记忆系统配置（config.yml 的 memory 节，SPEC §4.5）。
+
+    两个子开关任一为 False 时对应 hook 直接 no-op（SPEC §6.4）。
+    enabled 为 False 时整体记忆关闭，等价基线。
+    """
+    short_term: ShortTermMemoryConfig = field(default_factory=ShortTermMemoryConfig)
+    long_term: LongTermMemoryConfig = field(default_factory=LongTermMemoryConfig)
+
+    @classmethod
+    def from_dict(cls, config: Dict[str, Any]) -> "MemoryConfig":
+        config = _resolve_env_vars(config)
+        return cls(
+            short_term=ShortTermMemoryConfig.from_dict(config.get("short_term", {})),
+            long_term=LongTermMemoryConfig.from_dict(config.get("long_term", {})),
+        )
+
+    @property
+    def enabled(self) -> bool:
+        """任一子模块启用即视为记忆系统启用。"""
+        return self.short_term.enabled or self.long_term.enabled
+
+
+@dataclass
 class AtguiguConfig:
     """atguigu_ai主配置类
     

@@ -1,0 +1,24 @@
+{# 会话结束兜底抽取提示词（SPEC §4.3）#}
+你是记忆抽取器。请回顾完整会话，抽取应长期记住的结构化事实，输出 JSON 数组。
+支持的事实类型：
+- preference: {"type": string, "value": string, "confidence": 0.0~1.0}
+- address: {"label"?:string, "province":string, "city":string, "district":string, "street"?:string, "phone"?:string, "contact"?:string, "is_default"?:bool}
+- order_ref: {"order_id": string, "context": string}
+
+抽取规则：
+1. 只抽取用户在会话中**明确表达**过的事实
+2. preference 的 type 用简短类别名（如 "快递公司"、"送货时间"、"支付方式"），value 为具体值
+3. 用户多次表达同一偏好时，取最后一次并适当提高 confidence（最高 1.0）
+4. address 至少要有 province/city/district 才算有效地址
+5. order_ref 的 order_id 必须是用户明确提到的订单号
+6. 问候、确认、情绪性表达不算事实，忽略
+7. 无任何事实时返回空数组 []
+8. 只输出 JSON 数组，不要输出任何解释、markdown 或额外文字
+
+=== 完整会话记录 ===
+{% for turn in all_turns %}
+[第{{ loop.index }}轮 用户] {{ turn.user }}
+[第{{ loop.index }}轮 助手] {{ turn.bot }}
+{% endfor %}
+
+=== 输出 JSON 数组 ===
