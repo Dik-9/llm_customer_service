@@ -143,10 +143,14 @@ class PromptBuilder:
             tracker, domain
         )
         context["flow_slots"] = self._get_flow_slots(tracker, domain, flows)
-        
+
+        # 记忆上下文（SPEC §6.1：before_understand hook 写入 tracker.memory_context）
+        # None/空 时模板不渲染记忆部分（基线等价）
+        context["memory_context"] = getattr(tracker, "memory_context", None)
+
         # 对话历史
         context["conversation_history"] = self._get_conversation_history(tracker)
-        
+
         return context
     
     def _prepare_flows_data(

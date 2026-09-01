@@ -113,6 +113,26 @@
 
 ---
 
+## 记忆上下文
+{% if memory_context %}
+{% if memory_context.profile_text %}
+【用户画像】{{ memory_context.profile_text }}
+{% endif %}
+{% if memory_context.mentions_text %}
+【最近提及】{{ memory_context.mentions_text }}
+{% endif %}
+{% if memory_context.session_summary %}
+【历史摘要】{{ memory_context.session_summary }}
+{% endif %}
+{% if memory_context.resolved_order_id %}
+【指代消歧】用户最近提及的订单：{{ memory_context.resolved_order_id }}（如用户说"上次那个订单"即指此单）
+{% endif %}
+{% else %}
+（无长期记忆/历史摘要）
+{% endif %}
+
+---
+
 ## 对话历史
 {% if conversation_history %}
 {% for msg in conversation_history %}

@@ -76,8 +76,9 @@ async def understand_node(state: "MessageProcessingState") -> Dict[str, Any]:
     该节点执行以下步骤：
     1. 检测 /SetSlots payload（按钮点击），直接解析绕过 LLM
     2. 将用户输入封装为 UserMessage 并更新 tracker
-    3. 调用 LLMCommandGenerator 生成命令
-    4. 调用 CommandProcessor 处理命令
+    3. [记忆 hook] 召回画像/指代消歧 → 写 tracker.memory_context + order_id 槽（SPEC §6.1）
+    4. 调用 LLMCommandGenerator 生成命令（prompt 渲染 memory_context）
+    5. 调用 CommandProcessor 处理命令
     
     Args:
         state: 当前图状态
@@ -93,6 +94,7 @@ async def understand_node(state: "MessageProcessingState") -> Dict[str, Any]:
     
     command_generator = state.get("_command_generator")
     command_processor = state.get("_command_processor")
+    memory_hooks = state.get("_memory_hooks")
     
     logger.info(f"[understand_node] 处理消息: {input_message[:50]}...")
     
@@ -133,13 +135,23 @@ async def understand_node(state: "MessageProcessingState") -> Dict[str, Any]:
     )
     tracker.update_with_message(user_message)
     
+    # 3. 记忆 hook：understand 前召回画像/指代消歧（SPEC §6.1）
+    # hooks 为 None 时 no-op；命中的画像/摘要写入 tracker.memory_context 供 prompt 渲染，
+    # 指代消歧命中时把 order_id 写入 tracker 槽位
+    if memory_hooks is not None:
+        try:
+            from atguigu_ai.memory.hooks import before_understand as _before_understand
+            await _before_understand(tracker, memory_hooks)
+        except Exception as e:
+            logger.warning(f"[understand_node] 记忆召回 hook 异常，降级无记忆: {e}")
+    
     # 初始化结果
     current_commands = None
     events = []
     process_result = None
     
     try:
-        # 2. 使用命令生成器生成命令
+        # 4. 使用命令生成器生成命令
         if command_generator:
             flows_list = flows.flows if flows else []
             generation_result = await command_generator.generate(
@@ -152,7 +164,7 @@ async def understand_node(state: "MessageProcessingState") -> Dict[str, Any]:
                 f"{[str(c) for c in generation_result.commands]}"
             )
             
-            # 3. 使用命令处理器处理命令
+            # 5. 使用命令处理器处理命令
             if generation_result.commands and command_processor:
                 process_result = command_processor.process(
                     generation_result.commands, tracker

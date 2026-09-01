@@ -43,37 +43,39 @@ class MessageProcessingState(TypedDict, total=False):
         _command_processor: 命令处理器引用 (CommandProcessor)
         _policy_ensemble: 策略集成器引用 (PolicyEnsemble)
         _tool_registry: 工具注册表引用 (ToolRegistry，统一执行入口)
+        _memory_hooks: 记忆系统 hook 编排器引用 (MemoryHooks，SPEC §6.1)
     """
     # 核心状态（使用 Any 以兼容 LangGraph 运行时类型解析）
     tracker: Any  # DialogueStateTracker
     domain: Any  # Optional[Domain]
     flows: Any  # Optional[FlowsList]
-    
+
     # 输入输出
     input_message: str
     metadata: Dict[str, Any]
     final_responses: List[Dict[str, Any]]
-    
+
     # 流程控制
     is_finished: bool
     action_count: int
     max_actions: int
-    
+
     # 中间结果
     current_commands: Any  # Optional[GenerationResult]
     process_result: Any  # Optional[ProcessResult]（understand_node → policy_node，承载 next_action）
     current_prediction: Any  # Optional[PolicyPrediction]
     current_action_result: Any  # Optional[ActionResult]
-    
+
     # 调试信息
     node_history: List[str]
     error: Optional[str]
-    
+
     # 组件引用（内部使用，以 _ 开头）
     _command_generator: Any  # Optional[LLMCommandGenerator]
     _command_processor: Any  # Optional[CommandProcessor]
     _policy_ensemble: Any  # Optional[PolicyEnsemble]
     _tool_registry: Any  # Optional[ToolRegistry]（统一执行入口，SPEC §6.2）
+    _memory_hooks: Any  # Optional[MemoryHooks]（记忆系统 hook，SPEC §6.1；None 时等价基线）
 
 
 def create_initial_state(
@@ -87,6 +89,7 @@ def create_initial_state(
     command_processor: Any = None,
     policy_ensemble: Any = None,
     tool_registry: Any = None,
+    memory_hooks: Any = None,
 ) -> MessageProcessingState:
     """创建初始状态。
 
@@ -94,13 +97,14 @@ def create_initial_state(
         tracker: 对话状态追踪器 (DialogueStateTracker)
         input_message: 用户输入消息
         domain: Domain定义
-        flows: Flow列表 (FlowsList)
+        flows: Flow列表
         metadata: 消息元数据
         max_actions: 最大动作数限制
         command_generator: 命令生成器 (LLMCommandGenerator)
         command_processor: 命令处理器 (CommandProcessor)
         policy_ensemble: 策略集成器 (PolicyEnsemble)
         tool_registry: 工具注册表 (ToolRegistry，统一执行入口，SPEC §6.2)
+        memory_hooks: 记忆系统 hook 编排器 (MemoryHooks，SPEC §6.1；None 时等价基线)
 
     Returns:
         初始化的状态字典
@@ -131,6 +135,7 @@ def create_initial_state(
         _command_processor=command_processor,
         _policy_ensemble=policy_ensemble,
         _tool_registry=tool_registry,
+        _memory_hooks=memory_hooks,
     )
 
 

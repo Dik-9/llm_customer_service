@@ -71,6 +71,8 @@ async def action_node(state: "MessageProcessingState") -> Dict[str, Any]:
     command_generator = state.get("_command_generator")
     # 工具注册表：统一执行入口（SPEC §6.2）
     tool_registry = state.get("_tool_registry")
+    # 记忆系统 hook（SPEC §6.1；None 时 no-op，等价基线）
+    memory_hooks = state.get("_memory_hooks")
 
     if not current_prediction or not current_prediction.action:
         return {
@@ -145,6 +147,15 @@ async def action_node(state: "MessageProcessingState") -> Dict[str, Any]:
         logger.info(
             f"[action_node] 动作执行完成, 产生 {len(result.responses)} 个响应"
         )
+
+        # 记忆 hook：action 后实时抽取用户最新消息中的记忆事实（SPEC §6.1）
+        # hooks 为 None 时 no-op；抽取失败仅记日志，不影响主链路
+        if memory_hooks is not None:
+            try:
+                from atguigu_ai.memory.hooks import after_each_action as _after_each_action
+                await _after_each_action(tracker, result, memory_hooks)
+            except Exception as e:
+                logger.warning(f"[action_node] 记忆实时抽取 hook 异常，跳过: {e}")
 
         # 检查是否需要等待用户输入（收集槽位的情况）
         # 当 FlowPolicy 返回 slot_to_collect 时，执行完 utter 动作后应该停止

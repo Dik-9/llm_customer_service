@@ -105,6 +105,131 @@ def _load_custom_actions(actions_path: Path) -> List[str]:
     return registered_actions
 
 
+def _build_memory_hooks(
+    config_data: Dict[str, Any],
+    endpoints_config: "EndpointsConfig",
+) -> Optional[Any]:
+    """从 config.yml 的 memory 节点构建 MemoryHooks（SPEC §4.5 / §6.1）。
+
+    memory.enabled=false 或 memory 节点缺失时返回 None（等价基线，SPEC §6.4）。
+    任一子组件构造失败仅记日志降级，不阻断 Agent.load（多路径保障，SPEC §1.2）。
+
+    LLM 配置：short_term.llm / long_term.llm 引用 endpoints.yml 的 models.<name>，
+    默认 "command"；两个子模块共用同一 LLM 客户端（摘要/抽取均不需强推理）。
+    Neo4j 连接：复用 endpoints.yml 的 vector_store 节点（uri/user/password），
+    长期记忆使用独立 database（memory.long_term.graph_database，默认 user_memory）。
+    """
+    memory_data = config_data.get("memory") if config_data else None
+    if not memory_data:
+        return None
+
+    from atguigu_ai.shared.config import MemoryConfig
+    memory_config = MemoryConfig.from_dict(memory_data)
+    if not memory_config.enabled:
+        logger.info("[memory] 记忆系统未启用（memory.enabled=false），等价基线")
+        return None
+
+    # 解析 LLM 配置（两个子模块共用）
+    short_llm_ref = memory_config.short_term.llm or "command"
+    long_llm_ref = memory_config.long_term.llm or "command"
+    llm_cfg = endpoints_config.get_model_config(short_llm_ref) or endpoints_config.get_model_config(long_llm_ref)
+    llm_client = None
+    if llm_cfg:
+        try:
+            from atguigu_ai.shared.llm import create_llm_client
+            llm_client = create_llm_client(
+                type=llm_cfg.type,
+                model=llm_cfg.model,
+                api_key=llm_cfg.api_key,
+                api_base=llm_cfg.api_base,
+                temperature=llm_cfg.temperature,
+                max_tokens=llm_cfg.max_tokens,
+                enable_thinking=llm_cfg.enable_thinking,
+            )
+            logger.info(f"[memory] LLM 客户端就绪: model={llm_cfg.model}")
+        except Exception as e:
+            logger.warning(f"[memory] LLM 客户端构造失败，记忆抽取/压缩将降级: {e}")
+
+    # 构造长期记忆组件（Neo4j 图谱）
+    graph_store = None
+    recaller = None
+    extractor = None
+    if memory_config.long_term.enabled:
+        # Neo4j 连接（复用 vector_store 配置）
+        vs_config = endpoints_config.vector_store.to_connect_config() if endpoints_config.vector_store else {}
+        uri = vs_config.get("uri")
+        user = vs_config.get("user")
+        password = vs_config.get("password")
+        database = memory_config.long_term.graph_database or "user_memory"
+        if uri and user and password:
+            try:
+                from atguigu_ai.memory.long_term.graph_store import GraphMemoryStore
+                graph_store = GraphMemoryStore.connect(uri, user, password, database=database)
+                logger.info(f"[memory] Neo4j 图谱存储就绪: database={database}")
+            except Exception as e:
+                logger.warning(f"[memory] Neo4j 图谱存储构造失败，长期记忆降级: {e}")
+        else:
+            logger.warning("[memory] endpoints.yml 缺少 vector_store(uri/user/password)，长期记忆降级")
+
+        if graph_store is not None:
+            try:
+                from atguigu_ai.memory.long_term.recaller import MemoryRecaller
+                recaller = MemoryRecaller(graph_store)
+            except Exception as e:
+                logger.warning(f"[memory] MemoryRecaller 构造失败: {e}")
+
+        if llm_client is not None:
+            try:
+                from atguigu_ai.memory.long_term.extractor import MemoryExtractor
+                extractor = MemoryExtractor(llm_client)
+            except Exception as e:
+                logger.warning(f"[memory] MemoryExtractor 构造失败: {e}")
+
+    # 构造短期记忆组件（对话压缩）
+    compressor = None
+    if memory_config.short_term.enabled and llm_client is not None:
+        try:
+            from atguigu_ai.memory.short_term.compressor import ShortTermCompressor
+            compressor = ShortTermCompressor(
+                llm_client=llm_client,
+                max_raw_turns=memory_config.short_term.max_raw_turns,
+                keep_recent_turns=memory_config.short_term.keep_recent_turns,
+            )
+            logger.info(
+                f"[memory] 短期压缩器就绪: max_raw_turns={memory_config.short_term.max_raw_turns}, "
+                f"keep_recent_turns={memory_config.short_term.keep_recent_turns}"
+            )
+        except Exception as e:
+            logger.warning(f"[memory] ShortTermCompressor 构造失败: {e}")
+
+    # 任一子组件就绪即构造 MemoryHooks（其内部按子开关 no-op 缺失组件）
+    if recaller is None and extractor is None and compressor is None and graph_store is None:
+        logger.warning("[memory] 所有记忆子组件构造失败，memory_hooks=None 等价基线")
+        return None
+
+    try:
+        from atguigu_ai.memory.hooks import MemoryHooks
+        hooks = MemoryHooks(
+            config=memory_config,
+            recaller=recaller,
+            extractor=extractor,
+            compressor=compressor,
+            graph_store=graph_store,
+        )
+        enabled_parts = []
+        if memory_config.short_term.enabled:
+            enabled_parts.append(f"short_term({'on' if compressor else 'degraded'})")
+        if memory_config.long_term.enabled:
+            enabled_parts.append(f"long_term(recaller={'on' if recaller else 'off'},"
+                                 f"extractor={'on' if extractor else 'off'},"
+                                 f"graph={'on' if graph_store else 'off'})")
+        logger.info(f"[memory] MemoryHooks 注入成功: {', '.join(enabled_parts)}")
+        return hooks
+    except Exception as e:
+        logger.warning(f"[memory] MemoryHooks 构造失败，等价基线: {e}")
+        return None
+
+
 @dataclass
 class AgentConfig:
     """Agent配置。
@@ -154,9 +279,10 @@ class Agent:
         nlg_generator: Optional[Any] = None,
         config: Optional[AgentConfig] = None,
         tool_registry: Optional[Any] = None,
+        memory_hooks: Optional[Any] = None,
     ):
         """初始化Agent。
-        
+
         Args:
             domain: Domain定义
             flows: Flow列表
@@ -165,6 +291,8 @@ class Agent:
             command_generator: 命令生成器
             nlg_generator: NLG生成器（可选，用于响应重述）
             config: Agent配置
+            tool_registry: 工具注册表（统一执行入口，SPEC §6.2）
+            memory_hooks: 记忆系统 hook 编排器（SPEC §6.1；None 时等价基线）
         """
         self.domain = domain or Domain()
         self.flows = flows or FlowsList()
@@ -174,6 +302,10 @@ class Agent:
         # 惰性导入避免顶层循环依赖；未注入时构造本地注册表，等价基线行为
         from atguigu_ai.mcp.tool_registry import ToolRegistry
         self.tool_registry = tool_registry or ToolRegistry()
+
+        # MemoryHooks：记忆系统 hook 编排器（SPEC §6.1）
+        # None 时 understand_node/action_node/handle_message 中的 hook 调用全部 no-op，等价基线
+        self.memory_hooks = memory_hooks
 
         # 初始化Tracker存储
         if tracker_store:
@@ -250,6 +382,7 @@ class Agent:
             command_processor=self.command_processor,
             policy_ensemble=self.policy_ensemble,
             tool_registry=self.tool_registry,
+            memory_hooks=self.memory_hooks,
         )
         
         # 执行图
@@ -261,7 +394,16 @@ class Agent:
         final_responses = final_state.get("final_responses", [])
         node_history = final_state.get("node_history", [])
         error = final_state.get("error")
-        
+
+        # 记忆 hook：save tracker 前短期压缩 + 会话结束兜底抽取（SPEC §6.1）
+        # hooks 为 None 时 no-op；压缩/抽取失败仅记日志，不影响主链路
+        if self.memory_hooks is not None:
+            try:
+                from atguigu_ai.memory.hooks import before_save_tracker as _before_save_tracker
+                await _before_save_tracker(updated_tracker, self.memory_hooks)
+            except Exception as e:
+                logger.warning(f"[Agent] 记忆 save 前 hook 异常，跳过: {e}")
+
         # 保存Tracker
         await self.tracker_store.save(updated_tracker)
         
@@ -457,8 +599,9 @@ class Agent:
         enterprise_llm_config = None
         enterprise_embeddings_config = None
         retriever_class_path = None
+        config_data = {}
         if config_path.exists():
-            config_data = read_yaml_file(str(config_path))
+            config_data = read_yaml_file(str(config_path)) or {}
             if config_data:
                 # 从 pipeline 配置中获取 LLMCommandGenerator 的 llm 引用
                 pipeline = config_data.get("pipeline", [])
@@ -648,6 +791,10 @@ class Agent:
         from atguigu_ai.mcp.tool_registry import build_tool_registry
         tool_registry = build_tool_registry(endpoints_config.mcp)
 
+        # 构建记忆系统 hook（SPEC §6.1）：memory.enabled=false 时 memory_hooks=None，等价基线
+        # 任一子组件构造失败仅记日志降级，不阻断 Agent.load（多路径保障，SPEC §1.2）
+        memory_hooks = _build_memory_hooks(config_data, endpoints_config)
+
         return cls(
             domain=domain,
             flows=flows,
@@ -657,6 +804,7 @@ class Agent:
             nlg_generator=nlg_generator,
             config=config,
             tool_registry=tool_registry,
+            memory_hooks=memory_hooks,
         )
     
     @classmethod

@@ -16,3 +16,22 @@ policies:
     llm: rag              # RAG 回答生成，引用 models.rag
     graphrag_llm: graphrag  # GraphRAG 内部 LLM（Cypher生成等），引用 models.graphrag
     vector_store: addons.information_retrieval.GraphRAG
+
+# 记忆系统配置（SPEC §4.5）
+# enabled=false（默认）时 MemoryHooks=None，三处 hook 全 no-op，等价基线（SPEC §6.4）
+# 启用前需确保 endpoints.yml 的 vector_store（Neo4j）可达 + models.command LLM 可用
+# LLM 配置：short_term.llm / long_term.llm 引用 endpoints.yml 的 models.<name>，默认 command
+# Neo4j 连接：复用 endpoints.yml 的 vector_store 节点（uri/user/password），长期记忆用独立 database（graph_database）
+memory:
+  short_term:
+    enabled: false
+    max_raw_turns: 20
+    keep_recent_turns: 10
+    llm: command
+  long_term:
+    enabled: false
+    idle_timeout_minutes: 30
+    graph_database: "user_memory"
+    llm: command
+    realtime_extract: true
+    end_of_session_extract: true
