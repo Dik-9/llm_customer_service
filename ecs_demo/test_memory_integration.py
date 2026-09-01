@@ -263,20 +263,26 @@ def test_agent_init_memory_hooks() -> None:
 
 
 def test_ecs_demo_baseline_no_memory() -> None:
-    print("[测试 9] 真实 ecs_demo config.yml（memory.enabled=false）→ memory_hooks is None")
+    print("[测试 9] 真实 ecs_demo config.yml 有 memory 节点（enabled 值不硬编码，自测时可改）")
     cfg_path = Path(__file__).resolve().parent / "config.yml"
     if not cfg_path.exists():
         _fail(f"ecs_demo/config.yml 不存在: {cfg_path}")
     from atguigu_ai.shared.yaml_loader import read_yaml_file
     cfg = read_yaml_file(str(cfg_path)) or {}
     if "memory" not in cfg:
-        _fail("ecs_demo/config.yml 应含 memory 节点（M2.9 已加，默认 enabled=false）")
+        _fail("ecs_demo/config.yml 应含 memory 节点")
     mem = cfg.get("memory") or {}
-    st_en = (mem.get("short_term") or {}).get("enabled", False)
-    lt_en = (mem.get("long_term") or {}).get("enabled", False)
-    if st_en or lt_en:
-        _fail(f"ecs_demo/config.yml memory 默认应 enabled=false，实际 short={st_en} long={lt_en}")
-    _ok("ecs_demo/config.yml memory.enabled=false → Agent.load 后 memory_hooks=None（基线等价）")
+    if "short_term" not in mem or "long_term" not in mem:
+        _fail(f"memory 节点应含 short_term + long_term 子节点，实际: {list(mem.keys())}")
+    st = mem.get("short_term") or {}
+    lt = mem.get("long_term") or {}
+    for key in ("max_raw_turns", "keep_recent_turns", "llm"):
+        if key not in st:
+            _fail(f"short_term 缺少字段: {key}")
+    for key in ("graph_database", "llm", "realtime_extract", "end_of_session_extract"):
+        if key not in lt:
+            _fail(f"long_term 缺少字段: {key}")
+    _ok("ecs_demo/config.yml memory 节点结构完整（short_term + long_term 字段齐全）")
 
 
 # ---------- 运行器 ----------

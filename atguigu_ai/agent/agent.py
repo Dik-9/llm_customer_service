@@ -126,7 +126,7 @@ def _build_memory_hooks(
     from atguigu_ai.shared.config import MemoryConfig
     memory_config = MemoryConfig.from_dict(memory_data)
     if not memory_config.enabled:
-        logger.info("[memory] 记忆系统未启用（memory.enabled=false），等价基线")
+        print("[memory] 记忆系统未启用（memory.enabled=false），等价基线")
         return None
 
     # 解析 LLM 配置（两个子模块共用）
@@ -204,7 +204,7 @@ def _build_memory_hooks(
 
     # 任一子组件就绪即构造 MemoryHooks（其内部按子开关 no-op 缺失组件）
     if recaller is None and extractor is None and compressor is None and graph_store is None:
-        logger.warning("[memory] 所有记忆子组件构造失败，memory_hooks=None 等价基线")
+        print("[memory] 所有记忆子组件构造失败，memory_hooks=None 等价基线")
         return None
 
     try:
@@ -223,7 +223,7 @@ def _build_memory_hooks(
             enabled_parts.append(f"long_term(recaller={'on' if recaller else 'off'},"
                                  f"extractor={'on' if extractor else 'off'},"
                                  f"graph={'on' if graph_store else 'off'})")
-        logger.info(f"[memory] MemoryHooks 注入成功: {', '.join(enabled_parts)}")
+        print(f"[memory] MemoryHooks 注入成功: {', '.join(enabled_parts)}")
         return hooks
     except Exception as e:
         logger.warning(f"[memory] MemoryHooks 构造失败，等价基线: {e}")

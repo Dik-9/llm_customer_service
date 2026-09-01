@@ -127,7 +127,7 @@ class MemoryHooks:
                 resolved = mem_ctx.get("resolved_order_id")
                 if resolved and self._get_slot(tracker, "order_id") in (None, "", False):
                     self._set_slot(tracker, "order_id", resolved)
-                    logger.info(f"[MemoryHooks] 指代消歧 → order_id={resolved}")
+                    print(f"[MemoryHooks] 指代消歧 → order_id={resolved}")
             except Exception as e:
                 logger.warning(f"[MemoryHooks] 长期召回失败，降级无记忆: {e}")
 
@@ -167,6 +167,8 @@ class MemoryHooks:
             recent = _turns_to_text(getattr(tracker, "dialogue_turns", []) or [], limit=3)
             facts = await self.extractor.extract_realtime(message, recent)
             self._write_facts(user_id, facts, source="realtime")
+            if facts:
+                print(f"[MemoryHooks] 实时抽取 {len(facts)} 条事实")
             return facts
         except Exception as e:
             logger.warning(f"[MemoryHooks] 实时抽取失败，跳过: {e}")
@@ -200,6 +202,7 @@ class MemoryHooks:
                 if self.compressor.should_compress(tracker):
                     comp = await self.compressor.compress(tracker)
                     result["compression"] = comp
+                    print(f"[MemoryHooks] 短期压缩触发，摘要长度={len(comp.summary)}")
             except Exception as e:
                 logger.warning(f"[MemoryHooks] 短期压缩失败，跳过: {e}")
 
@@ -218,7 +221,7 @@ class MemoryHooks:
                     facts = await self.extractor.extract_end_of_session(all_turns)
                     self._write_facts(user_id, facts, source="session_end")
                     result["end_of_session_facts"] = facts
-                    logger.info(f"[MemoryHooks] 会话结束兜底抽取 {len(facts)} 条事实")
+                    print(f"[MemoryHooks] 会话结束兜底抽取 {len(facts)} 条事实")
                 except Exception as e:
                     logger.warning(f"[MemoryHooks] 会话结束兜底抽取失败，跳过: {e}")
 
