@@ -121,13 +121,15 @@ def main(args: Optional[list] = None) -> None:
         from atguigu_ai.cli.shell import shell_command
         from atguigu_ai.cli.export import export_command
         from atguigu_ai.cli.inspect import inspect_command
-        
+        from atguigu_ai.cli.flow_generate import flow_generate_command
+
         cli.add_command(init_command)
         cli.add_command(train_command)
         cli.add_command(run_command)
         cli.add_command(shell_command)
         cli.add_command(export_command)
         cli.add_command(inspect_command)
+        cli.add_command(flow_generate_command)
         
         # 执行CLI
         cli(args)
